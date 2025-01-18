@@ -3,6 +3,7 @@ import { AppBar, Tabs, Tab, Box } from "@mui/material";
 import EventManager from "./EventManager";
 import SlideManager from "./SlideManager";
 import PosterStorage from "./PosterStorage"
+import RecruitmentForm from "./Recruitment Form";
 
 const DashboardLayout = () => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -27,6 +28,10 @@ const DashboardLayout = () => {
             color: "white", // Default color
             "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
           }} />
+          <Tab label="Recruitment"sx={{
+            color: "white", // Default color
+            "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
+          }} />
 
         </Tabs>
       </AppBar>
@@ -34,6 +39,8 @@ const DashboardLayout = () => {
         {tabIndex === 0 && <EventManager />}
         {tabIndex === 1 && <SlideManager />}
         {tabIndex === 2 && <PosterStorage />}
+        {tabIndex === 3 && <RecruitmentForm />}
+
 
       </Box>
     </div>
