@@ -1,15 +1,35 @@
-import React, { useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { Box, Button, TextField, Typography, Grid2, FormHelperText } from "@mui/material";
+import { Box, Button, TextField, Typography, Grid2, FormHelperText, Modal } from "@mui/material";
 
 const RecruitmentForm = () => {
   const [formData, setFormData] = useState({
     title: "",
     link: "",
   });
-
+  const [forms, setForms] = useState([]);
   const [errors, setErrors] = useState({});
+  const [openModal, setOpenModal] = useState(false);
+  const [editFormId, setEditFormId] = useState(null);
+
+  // Fetch forms from Firebase
+  const fetchForms = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "RecruitmentForms"));
+      const formsList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setForms(formsList);
+    } catch (e) {
+      console.error("Error fetching forms: ", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchForms();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,15 +59,46 @@ const RecruitmentForm = () => {
     }
 
     try {
-      await addDoc(collection(db, "RecruitmentForms"), {
-        Title: formData.title,
-        GoogleFormLink: formData.link,
-      });
-      alert("Form data successfully uploaded to Firebase!");
+      if (editFormId) {
+        // Update existing form
+        const formRef = doc(db, "RecruitmentForms", editFormId);
+        await updateDoc(formRef, {
+          Title: formData.title,
+          GoogleFormLink: formData.link,
+        });
+        setEditFormId(null);
+      } else {
+        // Add new form
+        await addDoc(collection(db, "RecruitmentForms"), {
+          Title: formData.title,
+          GoogleFormLink: formData.link,
+        });
+      }
+      alert("Form data successfully submitted!");
       setFormData({ title: "", link: "" }); // Clear form after submission
+      fetchForms(); // Refresh form list
     } catch (e) {
-      console.error("Error adding document: ", e);
+      console.error("Error adding/updating document: ", e);
     }
+  };
+
+  const handleEdit = (form) => {
+    setFormData({ title: form.Title, link: form.GoogleFormLink });
+    setEditFormId(form.id);
+  };
+
+  const handleDelete = async (formId) => {
+    try {
+      await deleteDoc(doc(db, "RecruitmentForms", formId));
+      alert("Form successfully deleted!");
+      fetchForms(); // Refresh form list
+    } catch (e) {
+      console.error("Error deleting document: ", e);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setOpenModal(false);
   };
 
   return (
@@ -64,7 +115,7 @@ const RecruitmentForm = () => {
       }}
     >
       <Typography variant="h5" component="h2" gutterBottom>
-        Create Recruitment Form
+        Create or Edit Recruitment Form
       </Typography>
       <Grid2 container spacing={2}>
         <Grid2 xs={12}>
@@ -99,10 +150,47 @@ const RecruitmentForm = () => {
             fullWidth
             size="large"
           >
-            Submit
+            {editFormId ? "Update" : "Submit"}
           </Button>
         </Grid2>
       </Grid2>
+
+      <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 4 }}>
+        Uploaded Forms
+      </Typography>
+      <Box>
+        {forms.map((form) => (
+          <Box
+            key={form.id}
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderBottom: "1px solid #ccc",
+              padding: "8px 0",
+            }}
+          >
+            <Typography variant="body1">{form.Title}</Typography>
+            <Box>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => handleEdit(form)}
+                sx={{ marginRight: 1 }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => handleDelete(form.id)}
+              >
+                Delete
+              </Button>
+            </Box>
+          </Box>
+        ))}
+      </Box>
     </Box>
   );
 };
