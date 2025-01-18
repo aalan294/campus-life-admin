@@ -1,198 +1,220 @@
-import React, { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase/config";
-import { Box, Button, TextField, Typography, Grid2, FormHelperText, Modal } from "@mui/material";
+// components/RecruitmentManager.js
 
-const RecruitmentForm = () => {
-  const [formData, setFormData] = useState({
-    title: "",
-    link: "",
-  });
-  const [forms, setForms] = useState([]);
-  const [errors, setErrors] = useState({});
-  const [openModal, setOpenModal] = useState(false);
-  const [editFormId, setEditFormId] = useState(null);
+import React, { useState, useEffect } from 'react';
+import api from '../API/api'; // Axios instance for API calls
+import styled from 'styled-components';
 
-  // Fetch forms from Firebase
-  const fetchForms = async () => {
+// Styled-components for styling
+const Container = styled.div`
+  padding: 20px;
+  background-color: #f9f9f9;
+  max-width: 600px;
+  margin: 0 auto;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+`;
+
+const Title = styled.h2`
+  text-align: center;
+  margin-bottom: 20px;
+  color: #333;
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+`;
+
+const Label = styled.label`
+  font-size: 14px;
+  color: #333;
+`;
+
+const Input = styled.input`
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+`;
+
+const Button = styled.button`
+  padding: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  
+  &:disabled {
+    background-color: #ccc;
+  }
+
+  &:hover {
+    background-color: #0056b3;
+  }
+`;
+
+const SuccessMessage = styled.div`
+  background-color: #28a745;
+  color: white;
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 5px;
+`;
+
+const ErrorMessage = styled.div`
+  background-color: #dc3545;
+  color: white;
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 5px;
+`;
+
+const RecruitmentList = styled.div`
+  margin-top: 20px;
+`;
+
+const RecruitmentItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fff;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  margin-bottom: 10px;
+`;
+
+const DeleteButton = styled.button`
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #c82333;
+  }
+`;
+
+const RecruitmentManager = () => {
+  const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
+  const [recruitments, setRecruitments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(null);
+  const [error, setError] = useState(null);
+
+  // Fetch all recruitment links
+  const fetchRecruitments = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "RecruitmentForms"));
-      const formsList = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setForms(formsList);
-    } catch (e) {
-      console.error("Error fetching forms: ", e);
+      const response = await api.get('/recruitments');
+      setRecruitments(response.data);
+    } catch (err) {
+      setError('Error fetching recruitment links');
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    fetchForms();
-  }, []);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-    setErrors({
-      ...errors,
-      [name]: "",
-    });
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.title) newErrors.title = "Title is required";
-    if (!formData.link) newErrors.link = "Link is required";
-    return newErrors;
-  };
-
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+    setLoading(true);
+    setSuccess(null);
+    setError(null);
 
     try {
-      if (editFormId) {
-        // Update existing form
-        const formRef = doc(db, "RecruitmentForms", editFormId);
-        await updateDoc(formRef, {
-          Title: formData.title,
-          GoogleFormLink: formData.link,
-        });
-        setEditFormId(null);
-      } else {
-        // Add new form
-        await addDoc(collection(db, "RecruitmentForms"), {
-          Title: formData.title,
-          GoogleFormLink: formData.link,
-        });
+      await api.post('/recruitments', { title, url });
+      setSuccess('Recruitment link added successfully!');
+      setTitle('');
+      setUrl('');
+      fetchRecruitments(); // Refresh the list after adding a new recruitment
+    } catch (err) {
+      setError('Error adding recruitment link');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle delete
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this recruitment link?')) {
+      try {
+        await api.delete(`/recruitments/${id}`);
+        setRecruitments(recruitments.filter((recruitment) => recruitment._id !== id));
+        setSuccess('Recruitment link deleted successfully!');
+      } catch (err) {
+        setError('Error deleting recruitment link');
+        console.error(err);
       }
-      alert("Form data successfully submitted!");
-      setFormData({ title: "", link: "" }); // Clear form after submission
-      fetchForms(); // Refresh form list
-    } catch (e) {
-      console.error("Error adding/updating document: ", e);
     }
   };
 
-  const handleEdit = (form) => {
-    setFormData({ title: form.Title, link: form.GoogleFormLink });
-    setEditFormId(form.id);
-  };
-
-  const handleDelete = async (formId) => {
-    try {
-      await deleteDoc(doc(db, "RecruitmentForms", formId));
-      alert("Form successfully deleted!");
-      fetchForms(); // Refresh form list
-    } catch (e) {
-      console.error("Error deleting document: ", e);
-    }
-  };
-
-  const handleCloseModal = () => {
-    setOpenModal(false);
-  };
+  // Fetch recruitment links when component mounts
+  useEffect(() => {
+    fetchRecruitments();
+  }, []);
 
   return (
-    <Box
-      component="form"
-      onSubmit={handleSubmit}
-      sx={{
-        maxWidth: 500,
-        margin: "auto",
-        padding: 3,
-        boxShadow: 3,
-        borderRadius: 2,
-        backgroundColor: "#fff",
-      }}
-    >
-      <Typography variant="h5" component="h2" gutterBottom>
-        Create or Edit Recruitment Form
-      </Typography>
-      <Grid2 container spacing={2}>
-        <Grid2 xs={12}>
-          <TextField
-            label="Title"
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            error={!!errors.title}
-            helperText={errors.title}
-            fullWidth
-            variant="outlined"
+    <Container>
+      <Title>Manage Recruitment Links</Title>
+      {/* Form for adding recruitment link */}
+      <Form onSubmit={handleSubmit}>
+        <div>
+          <Label htmlFor="title">Title</Label>
+          <Input
+            type="text"
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
           />
-        </Grid2>
-        <Grid2 xs={12}>
-          <TextField
-            label="Google Form Link"
-            name="link"
-            value={formData.link}
-            onChange={handleChange}
-            error={!!errors.link}
-            helperText={errors.link}
-            fullWidth
-            variant="outlined"
+        </div>
+        <div>
+          <Label htmlFor="url">URL</Label>
+          <Input
+            type="url"
+            id="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            required
           />
-        </Grid2>
-        <Grid2 xs={12}>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            fullWidth
-            size="large"
-          >
-            {editFormId ? "Update" : "Submit"}
-          </Button>
-        </Grid2>
-      </Grid2>
+        </div>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Adding...' : 'Add Link'}
+        </Button>
+      </Form>
 
-      <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 4 }}>
-        Uploaded Forms
-      </Typography>
-      <Box>
-        {forms.map((form) => (
-          <Box
-            key={form.id}
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderBottom: "1px solid #ccc",
-              padding: "8px 0",
-            }}
-          >
-            <Typography variant="body1">{form.Title}</Typography>
-            <Box>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => handleEdit(form)}
-                sx={{ marginRight: 1 }}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={() => handleDelete(form.id)}
-              >
+      {/* Success or Error Messages */}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+
+      {/* Display all recruitment links */}
+      <RecruitmentList>
+        {recruitments.length > 0 ? (
+          recruitments.map((recruitment) => (
+            <RecruitmentItem key={recruitment._id}>
+              <div>
+                <strong>{recruitment.title}</strong>
+                <br />
+                <small>{recruitment.url}</small>
+              </div>
+              <DeleteButton onClick={() => handleDelete(recruitment._id)}>
                 Delete
-              </Button>
-            </Box>
-          </Box>
-        ))}
-      </Box>
-    </Box>
+              </DeleteButton>
+            </RecruitmentItem>
+          ))
+        ) : (
+          <p>No recruitment links available.</p>
+        )}
+      </RecruitmentList>
+    </Container>
   );
 };
 
-export default RecruitmentForm;
+export default RecruitmentManager;

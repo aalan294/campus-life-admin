@@ -1,288 +1,266 @@
-import React, { useState, useEffect } from "react";
-import styled from "styled-components";
-import { pinata } from "../config";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
-import { db } from "../firebase/config";
-import {
-  TextField,
-  Button,
-  Checkbox,
-  FormControlLabel,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-} from "@mui/material";
-
-const Container = styled.div`
-  background-color: #f9f9f9;
-  color: #333;
-  padding: 2rem;
-  font-family: Arial, sans-serif;
-`;
-
-const Form = styled.form`
-  display: grid;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  border: 1px solid #ccc;
-  border-radius: 10px;
-  background-color: #fff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-`;
-
-const StyledButton = styled(Button)`
-  && {
-    background-color: #007bff;
-    color: #fff;
-    &:hover {
-      background-color: #0056b3;
-    }
-  }
-`;
-
-const StyledTableContainer = styled(TableContainer)`
-  && {
-    margin-top: 1.5rem;
-    background-color: #fff;
-    border: 1px solid #ccc;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const StyledTableCell = styled(TableCell)`
-  && {
-    color: #555;
-    font-weight: bold;
-  }
-`;
-
-const ActionsButton = styled(Button)`
-  && {
-    background-color: #dc3545;
-    color: #fff;
-    &:hover {
-      background-color: #a71d2a;
-    }
-  }
-`;
+import React, { useState, useEffect } from 'react';
+import api from '../API/api'; // Import the Axios instance from api.js
+import styled from 'styled-components';
 
 const SlideManager = () => {
-  const [slides, setSlides] = useState([]);
-  const [transformedSlides, setTransformedSlides] = useState([]);
-  const [newSlide, setNewSlide] = useState({
-    title: "",
-    imageFile: null,
-    order: 0,
-    active: false,
-  });
+  const [eventName, setEventName] = useState('');
+  const [image, setImage] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [slides, setSlides] = useState([]); // To store all the slides
 
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    // Create FormData to send the image and eventName
+    const formData = new FormData();
+    formData.append('eventName', eventName);
+    if (image) {
+      formData.append('image', image); // Ensure 'image' is appended correctly
+    }
+
+    try {
+      const response = await api.post('/events/slide', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data', // Important for file uploads
+        },
+      });
+      setSuccess('Slide image uploaded successfully!');
+      setEventName('');
+      setImage(null);
+      fetchSlides(); // Refresh the slides list after successful upload
+    } catch (err) {
+      setError('Error uploading slide image');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all slides from the database
   const fetchSlides = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "homepageSlides"));
-      const slidesData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setSlides(slidesData);
-      transformSlides(slidesData); // Transform slides after fetching
-    } catch (error) {
-      console.error("Error fetching slides:", error);
+      const response = await api.get('/events/slide');
+      setSlides(response.data); // Set the slides data
+    } catch (err) {
+      console.error('Error fetching slides:', err);
     }
   };
 
-  const transformSlides = async (slidesArray) => {
-    try {
-      const transformed = await Promise.all(
-        slidesArray.map(async (slide) => {
-          const signedUrl = await getSignedUrl(slide.imageUrl);
-          return { ...slide, signedUrl };
-        })
-      );
-      setTransformedSlides(transformed);
-    } catch (error) {
-      console.error("Error transforming slides:", error);
+  // Delete a specific slide
+  const handleDelete = async (id, imageName) => {
+    if (window.confirm('Are you sure you want to delete this slide?')) {
+      try {
+        await api.delete(`/events/slide/${id}`);
+        setSlides(slides.filter((slide) => slide._id !== id)); // Remove deleted slide from the list
+        setSuccess('Slide deleted successfully!');
+      } catch (err) {
+        setError('Error deleting slide');
+        console.error('Error deleting slide:', err);
+      }
     }
   };
 
+  // Fetch slides when the component mounts
   useEffect(() => {
     fetchSlides();
   }, []);
 
-  const handleFileChange = (e) => {
-    setNewSlide((prev) => ({ ...prev, imageFile: e.target.files[0] }));
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setNewSlide((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const uploadToIPFS = async (file) => {
-    try {
-      const response = await pinata.upload.file(file);
-      return response.cid; // Return CID
-    } catch (error) {
-      console.error("Error uploading to IPFS:", error);
-      throw new Error("Failed to upload to IPFS");
-    }
-  };
-
-  const getSignedUrl = async (cid) => {
-    try {
-      const signedUrl = await pinata.gateways.createSignedURL({
-        cid,
-        expires: 60,
-      });
-      return signedUrl;
-    } catch (err) {
-      console.error("Error fetching signed URL:", err);
-      return "";
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!newSlide.imageFile) {
-      alert("Please upload an image!");
-      return;
-    }
-
-    try {
-      const cid = await uploadToIPFS(newSlide.imageFile);
-      await addDoc(collection(db, "homepageSlides"), {
-        title: newSlide.title,
-        imageUrl: cid,
-        order: parseInt(newSlide.order, 10),
-        active: newSlide.active,
-      });
-
-      setNewSlide({
-        title: "",
-        imageFile: null,
-        order: 0,
-        active: false,
-      });
-      fetchSlides(); // Refetch slides after addition
-    } catch (error) {
-      console.error("Error adding slide:", error);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteDoc(doc(db, "homepageSlides", id));
-      fetchSlides(); // Refetch slides after deletion
-    } catch (error) {
-      console.error("Error deleting slide:", error);
-    }
-  };
-
-  const toggleActive = async (id, currentState) => {
-    try {
-      await updateDoc(doc(db, "homepageSlides", id), {
-        active: !currentState,
-      });
-      fetchSlides(); // Refetch slides after update
-    } catch (error) {
-      console.error("Error updating slide:", error);
-    }
-  };
-
   return (
     <Container>
+      <Title>Upload Slide Image</Title>
+
+      {/* Form to upload slide */}
       <Form onSubmit={handleSubmit}>
-        <TextField
-          label="Title"
-          name="title"
-          value={newSlide.title}
-          onChange={handleInputChange}
-          required
-        />
-        <input type="file" accept="image/*" onChange={handleFileChange} required />
-        <TextField
-          label="Display Order"
-          name="order"
-          type="number"
-          value={newSlide.order}
-          onChange={handleInputChange}
-          required
-        />
-        <FormControlLabel
-          control={
-            <Checkbox
-              name="active"
-              checked={newSlide.active}
-              onChange={handleInputChange}
-            />
-          }
-          label="Active"
-        />
-        <StyledButton type="submit" variant="contained">
-          Add Slide
-        </StyledButton>
+        <FormGroup>
+          <Label htmlFor="eventName">Event Name</Label>
+          <Input
+            type="text"
+            id="eventName"
+            name="eventName"
+            value={eventName}
+            onChange={(e) => setEventName(e.target.value)}
+            required
+          />
+        </FormGroup>
+
+        <FormGroup>
+          <Label htmlFor="image">Image</Label>
+          <Input
+            type="file"
+            id="image"
+            name="image"
+            onChange={(e) => setImage(e.target.files[0])}
+            required
+          />
+        </FormGroup>
+
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Uploading...' : 'Upload'}
+        </Button>
       </Form>
 
-      <StyledTableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <StyledTableCell>Title</StyledTableCell>
-              <StyledTableCell>Image</StyledTableCell>
-              <StyledTableCell>Order</StyledTableCell>
-              <StyledTableCell>Active</StyledTableCell>
-              <StyledTableCell>Actions</StyledTableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {transformedSlides.map((slide) => (
-              <TableRow key={slide.id}>
-                <TableCell>{slide.title}</TableCell>
-                <TableCell>
-                  {slide.signedUrl && (
-                    <img
-                      src={slide.signedUrl}
-                      alt={slide.title}
-                      style={{ width: "100px" }}
-                    />
-                  )}
-                </TableCell>
-                <TableCell>{slide.order}</TableCell>
-                <TableCell>
-                  <Checkbox
-                    checked={slide.active}
-                    onChange={() => toggleActive(slide.id, slide.active)}
-                  />
-                </TableCell>
-                <TableCell>
-                  <ActionsButton
-                    variant="contained"
-                    onClick={() => handleDelete(slide.id)}
-                  >
-                    Delete
-                  </ActionsButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </StyledTableContainer>
+      {/* Display success or error messages */}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+
+      {/* Section to display all uploaded slides */}
+      <SlidesSection>
+        <h3>All Uploaded Slides</h3>
+        <SlidesList>
+          {slides.length > 0 ? (
+            slides.map((slide) => (
+              <SlideItem key={slide._id}>
+                <SlideImage src={`https://campus-life-server.onrender.com/${slide.image}`} alt={slide.eventName} />
+                <SlideInfo>
+                  <strong>{slide.eventName}</strong> <br />
+                  <small>{slide.image}</small>
+                </SlideInfo>
+                <DeleteButton onClick={() => handleDelete(slide._id, slide.image)}>
+                  Delete
+                </DeleteButton>
+              </SlideItem>
+            ))
+          ) : (
+            <NoSlides>No slides uploaded yet.</NoSlides>
+          )}
+        </SlidesList>
+      </SlidesSection>
     </Container>
   );
 };
 
 export default SlideManager;
+
+// Styled Components
+
+const Container = styled.div`
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+`;
+
+const Title = styled.h2`
+  font-size: 2rem;
+  color: #333;
+  text-align: center;
+`;
+
+const Form = styled.form`
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 15px;
+`;
+
+const Label = styled.label`
+  display: block;
+  font-weight: 600;
+  margin-bottom: 5px;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+`;
+
+const Button = styled.button`
+  background-color: #007bff;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px;
+
+  &:hover {
+    background-color: #0056b3;
+  }
+
+  &:disabled {
+    background-color: #aaa;
+  }
+`;
+
+const SuccessMessage = styled.div`
+  background-color: #d4edda;
+  color: #155724;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 10px;
+`;
+
+const ErrorMessage = styled.div`
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 10px;
+`;
+
+const SlidesSection = styled.section`
+  margin-top: 30px;
+`;
+
+const SlidesList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+`;
+
+const SlideItem = styled.div`
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  padding: 15px;
+  width: 200px;
+  text-align: center;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+`;
+
+const SlideImage = styled.img`
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+`;
+
+const SlideInfo = styled.div`
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const DeleteButton = styled.button`
+  background-color: #dc3545;
+  color: white;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 10px;
+
+  &:hover {
+    background-color: #c82333;
+  }
+`;
+
+const NoSlides = styled.p`
+  color: #888;
+  font-style: italic;
+`;

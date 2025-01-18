@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../API/api'; // Import the Axios instance from api.js
 import styled from 'styled-components';
 
-const PosterStorage = () => {
-  const [posterName, setposterName] = useState('');
+const HighlightManager = () => {
+  const [eventName, setEventName] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,21 +17,21 @@ const PosterStorage = () => {
     setError(null);
     setSuccess(null);
 
-    // Create FormData to send the image and posterName
+    // Create FormData to send the image and eventName
     const formData = new FormData();
-    formData.append('posterName', posterName);
+    formData.append('eventName', eventName);
     if (image) {
       formData.append('image', image); // Ensure 'image' is appended correctly
     }
 
     try {
-      const response = await api.post('/posters', formData, {
+      const response = await api.post('/hero', formData, {
         headers: {
           'Content-Type': 'multipart/form-data', // Important for file uploads
         },
       });
       setSuccess('Slide image uploaded successfully!');
-      setposterName('');
+      setEventName('');
       setImage(null);
       fetchSlides(); // Refresh the slides list after successful upload
     } catch (err) {
@@ -45,7 +45,7 @@ const PosterStorage = () => {
   // Fetch all slides from the database
   const fetchSlides = async () => {
     try {
-      const response = await api.get('/posters');
+      const response = await api.get('/hero');
       setSlides(response.data); // Set the slides data
     } catch (err) {
       console.error('Error fetching slides:', err);
@@ -56,7 +56,7 @@ const PosterStorage = () => {
   const handleDelete = async (id, imageName) => {
     if (window.confirm('Are you sure you want to delete this slide?')) {
       try {
-        await api.delete(`/posters/${id}`);
+        await api.delete(`/hero/${id}`);
         setSlides(slides.filter((slide) => slide._id !== id)); // Remove deleted slide from the list
         setSuccess('Slide deleted successfully!');
       } catch (err) {
@@ -73,18 +73,18 @@ const PosterStorage = () => {
 
   return (
     <Container>
-      <Title>Upload Poster Image</Title>
+      <Title>Upload Slide Image</Title>
 
       {/* Form to upload slide */}
       <Form onSubmit={handleSubmit}>
         <FormGroup>
-          <Label htmlFor="posterName">Poster Name</Label>
+          <Label htmlFor="eventName">Name</Label>
           <Input
             type="text"
-            id="posterName"
-            name="posterName"
-            value={posterName}
-            onChange={(e) => setposterName(e.target.value)}
+            id="eventName"
+            name="eventName"
+            value={eventName}
+            onChange={(e) => setEventName(e.target.value)}
             required
           />
         </FormGroup>
@@ -111,14 +111,14 @@ const PosterStorage = () => {
 
       {/* Section to display all uploaded slides */}
       <SlidesSection>
-        <h3>All Poster Image</h3>
+        <h3>All Uploaded Slides</h3>
         <SlidesList>
           {slides.length > 0 ? (
             slides.map((slide) => (
               <SlideItem key={slide._id}>
-                <SlideImage src={`https://campus-life-server.onrender.com/${slide.image}`} alt={slide.posterName} />
+                <SlideImage src={`https://campus-life-server.onrender.com/${slide.image}`} alt={slide.eventName} />
                 <SlideInfo>
-                  <strong>{slide.posterName}</strong> <br />
+                  <strong>{slide.eventName}</strong> <br />
                   <small>{slide.image}</small>
                 </SlideInfo>
                 <DeleteButton onClick={() => handleDelete(slide._id, slide.image)}>
@@ -135,7 +135,7 @@ const PosterStorage = () => {
   );
 };
 
-export default PosterStorage;
+export default HighlightManager;
 
 // Styled Components
 

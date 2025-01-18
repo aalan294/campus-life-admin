@@ -4,6 +4,7 @@ import EventManager from "./EventManager";
 import SlideManager from "./SlideManager";
 import PosterStorage from "./PosterStorage"
 import RecruitmentForm from "./Recruitment Form";
+import HighlightManager from "./HighlightManager";
 
 const DashboardLayout = () => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -32,6 +33,10 @@ const DashboardLayout = () => {
             color: "white", // Default color
             "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
           }} />
+          <Tab label="Highlight"sx={{
+            color: "white", // Default color
+            "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
+          }} />
 
         </Tabs>
       </AppBar>
@@ -40,6 +45,7 @@ const DashboardLayout = () => {
         {tabIndex === 1 && <SlideManager />}
         {tabIndex === 2 && <PosterStorage />}
         {tabIndex === 3 && <RecruitmentForm />}
+        {tabIndex === 4 && <HighlightManager/>}
 
 
       </Box>

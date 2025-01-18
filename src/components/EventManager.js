@@ -1,461 +1,334 @@
-import React, { useState, useEffect } from "react";
-import { pinata } from "../config";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../firebase/config";
-import {
-  TextField,
-  Button,
-  Checkbox,
-  FormControlLabel,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton,
-} from "@mui/material";
-import { Edit as EditIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import React, { useState, useEffect } from 'react';
+import api from '../API/api.js';
+import styled from 'styled-components';
 
-// Helper function to format dates
-const formatDate = (timestamp) => {
-  if (!timestamp) return "N/A";
-  try {
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleString();
-    }
-    const date = new Date(timestamp);
-    if (!isNaN(date)) {
-      return date.toLocaleString();
-    }
-    return "Invalid date";
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return "Invalid date";
+// Styled Components
+const Container = styled.div`
+  font-family: 'Arial', sans-serif;
+  background-color: #fff;
+  color: #333;
+  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+`;
+
+const Title = styled.h2`
+  color: #1e3a8a;
+  font-size: 2rem;
+  text-align: center;
+  margin-bottom: 20px;
+`;
+
+const FormWrapper = styled.form`
+  background-color: #f4f7fc;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+`;
+
+const InputField = styled.div`
+  margin-bottom: 20px;
+`;
+
+const Label = styled.label`
+  font-size: 1rem;
+  color: #1e3a8a;
+  display: block;
+  margin-bottom: 8px;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  &:focus {
+    border-color: #1e3a8a;
+    outline: none;
   }
-};
+`;
 
-// Main component
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  resize: vertical;
+  &:focus {
+    border-color: #1e3a8a;
+    outline: none;
+  }
+`;
+
+const Button = styled.button`
+  background-color: #1e3a8a;
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  width: 100%;
+  &:hover {
+    background-color: #1e50a2;
+  }
+  &:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
+  }
+`;
+
+const EventsSection = styled.div`
+  margin-top: 40px;
+`;
+
+const EventsTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+`;
+
+const TableHead = styled.th`
+  background-color: #1e3a8a;
+  color: white;
+  padding: 12px;
+  text-align: left;
+`;
+
+const TableRow = styled.tr`
+  border-bottom: 1px solid #ddd;
+`;
+
+const TableCell = styled.td`
+  padding: 12px;
+  text-align: left;
+`;
+
+const DeleteButton = styled.button`
+  background-color: #e53e3e;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  &:hover {
+    background-color: #c53030;
+  }
+`;
+
+const Error = styled.p`
+  color: #e53e3e;
+  text-align: center;
+  font-size: 1rem;
+`;
+
+const Success = styled.p`
+  color: #38a169;
+  text-align: center;
+  font-size: 1rem;
+`;
+
 const EventManager = () => {
-  const [events, setEvents] = useState([]);
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    description: "",
-    fee: 0,
-    imageUrl: "",
-    startDate: "",
-    endDate: "",
-    maxParticipants: 0,
-    registrationDeadline: "",
-    registrationRequired: false,
-    sheet: "",
-    slug: "",
-    status: "",
-    venue: "",
-    file: null,
-  });
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [fee, setFee] = useState('');
+  const [maxParticipants, setMaxParticipants] = useState('');
+  const [formLink, setFormLink] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [image, setImage] = useState(null); // For storing the image file
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [events, setEvents] = useState([]); // For storing all events
 
-  // Fetch events from Firestore
+  // Fetch all events
   const fetchEvents = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "events"));
-      const eventsData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setEvents(eventsData);
-    } catch (error) {
-      console.error("Error fetching events:", error);
+      const response = await api.get('/events');
+      if (response.status === 200) {
+        setEvents(response.data.events);
+      }
+    } catch (err) {
+      setError('Error fetching events. Please try again later.');
+      console.error(err);
     }
   };
 
+  // Delete an event
+  const handleDelete = async (id) => {
+    try {
+      const response = await api.delete(`/events/${id}`);
+      if (response.status === 200) {
+        setSuccess('Event deleted successfully!');
+        fetchEvents(); // Fetch the updated list of events after deletion
+      }
+    } catch (err) {
+      setError('Error deleting event. Please try again later.');
+      console.error(err);
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('fee', fee);
+    formData.append('maxParticipants', maxParticipants);
+    formData.append('formLink', formLink);
+    formData.append('eventDate', eventDate);
+
+    // Append image if exists
+    if (image) {
+      formData.append('image', image);
+    }
+
+    try {
+      // Send POST request to backend
+      const response = await api.post('/events', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.status === 201) {
+        setSuccess('Event created successfully!');
+        // Reset the form fields
+        setTitle('');
+        setDescription('');
+        setFee('');
+        setMaxParticipants('');
+        setFormLink('');
+        setEventDate('');
+        setImage(null);
+        fetchEvents(); // Fetch the updated list of events
+      }
+    } catch (err) {
+      setError('Error creating event. Please try again later.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch events on component mount
   useEffect(() => {
     fetchEvents();
   }, []);
 
-  // Handle input changes for new event
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setNewEvent((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  // Handle file upload to Pinata IPFS
-  const handleImageUpload = async (file) => {
-    if (!file) return null;
-    try {
-      const response = await pinata.upload.file(file);
-      return response.cid; // Return CID
-    } catch (error) {
-      console.error("Error uploading to Pinata IPFS:", error);
-      return null;
-    }
-  };
-
-  // Add a new event
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      // Upload the image to Pinata
-      const cid = await handleImageUpload(newEvent.file);
-      if (!cid) {
-        alert("Failed to upload image. Please try again.");
-        return;
-      }
-  
-      // Prepare event data to be saved to Firestore
-      const eventData = {
-        ...newEvent,
-        imageUrl: cid, // Use the uploaded image CID
-        fee: parseFloat(newEvent.fee),
-        maxParticipants: parseInt(newEvent.maxParticipants, 10),
-        startDate: new Date(newEvent.startDate),
-        endDate: new Date(newEvent.endDate),
-        registrationDeadline: new Date(newEvent.registrationDeadline),
-      };
-  
-      // Exclude the 'file' field from the event data before sending to Firestore
-      const { file, ...finalEventData } = eventData;
-  
-      // Add the new event to Firestore
-      await addDoc(collection(db, "events"), finalEventData);
-  
-      // Reset the newEvent state
-      setNewEvent({
-        title: "",
-        description: "",
-        fee: 0,
-        imageUrl: "",
-        startDate: "",
-        endDate: "",
-        maxParticipants: 0,
-        registrationDeadline: "",
-        registrationRequired: false,
-        sheet: "",
-        slug: "",
-        status: "",
-        venue: "",
-        file: null, // Reset file input as well
-      });
-  
-      // Fetch the updated events
-      fetchEvents();
-    } catch (error) {
-      console.error("Error adding event:", error);
-    }
-  };
-  
-
-  // Open edit dialog
-  const handleEdit = (event) => {
-    setEditingEvent(event);
-    setIsEditDialogOpen(true);
-  };
-
-  // Handle changes in edit dialog
-  const handleEditChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setEditingEvent((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  // Save edited event
-  const handleEditSave = async () => {
-    try {
-      const eventDoc = doc(db, "events", editingEvent.id);
-      await updateDoc(eventDoc, editingEvent);
-      setIsEditDialogOpen(false);
-      fetchEvents();
-    } catch (error) {
-      console.error("Error updating event:", error);
-    }
-  };
-
   return (
-    <div>
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}
-      >
-        <TextField
-          label="Title"
-          name="title"
-          value={newEvent.title}
-          onChange={handleChange}
-          required
-        />
-        <TextField
-          label="Description"
-          name="description"
-          value={newEvent.description}
-          onChange={handleChange}
-          required
-          multiline
-          rows={3}
-        />
-        <TextField
-          label="Fee"
-          name="fee"
-          type="number"
-          value={newEvent.fee}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) =>
-            setNewEvent((prev) => ({ ...prev, file: e.target.files[0] }))
-          }
-          required
-        />
-        <TextField
-          label="Start Date"
-          name="startDate"
-          type="datetime-local"
-          value={newEvent.startDate}
-          onChange={handleChange}
-          InputLabelProps={{ shrink: true }}
-          required
-        />
-        <TextField
-          label="End Date"
-          name="endDate"
-          type="datetime-local"
-          value={newEvent.endDate}
-          onChange={handleChange}
-          InputLabelProps={{ shrink: true }}
-          required
-        />
-        <TextField
-          label="Max Participants"
-          name="maxParticipants"
-          type="number"
-          value={newEvent.maxParticipants}
-          onChange={handleChange}
-          required
-        />
-        <TextField
-          label="Registration Deadline"
-          name="registrationDeadline"
-          type="datetime-local"
-          value={newEvent.registrationDeadline}
-          onChange={handleChange}
-          InputLabelProps={{ shrink: true }}
-          required
-        />
-        <FormControlLabel
-          control={
-            <Checkbox
-              name="registrationRequired"
-              checked={newEvent.registrationRequired}
-              onChange={handleChange}
-            />
-          }
-          label="Registration Required"
-        />
-        <TextField
-          label="Sheet URL"
-          name="sheet"
-          value={newEvent.sheet}
-          onChange={handleChange}
-        />
-        <TextField
-          label="Slug"
-          name="slug"
-          value={newEvent.slug}
-          onChange={handleChange}
-          required
-        />
-        <TextField
-          label="Status"
-          name="status"
-          value={newEvent.status}
-          onChange={handleChange}
-          required
-        />
-        <TextField
-          label="Venue"
-          name="venue"
-          value={newEvent.venue}
-          onChange={handleChange}
-          required
-        />
-        <Button type="submit" variant="contained" color="primary">
-          Add Event
+    <Container>
+      <Title>Create New Event</Title>
+      <FormWrapper onSubmit={handleSubmit}>
+        <InputField>
+          <Label>Title</Label>
+          <Input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+        </InputField>
+        <InputField>
+          <Label>Description</Label>
+          <TextArea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+          />
+        </InputField>
+        <InputField>
+          <Label>Fee</Label>
+          <Input
+            type="text"
+            value={fee}
+            onChange={(e) => setFee(e.target.value)}
+            required
+          />
+        </InputField>
+        <InputField>
+          <Label>Max Participants</Label>
+          <Input
+            type="number"
+            value={maxParticipants}
+            onChange={(e) => setMaxParticipants(e.target.value)}
+            required
+          />
+        </InputField>
+        <InputField>
+          <Label>Form Link</Label>
+          <Input
+            type="url"
+            value={formLink}
+            onChange={(e) => setFormLink(e.target.value)}
+            required
+          />
+        </InputField>
+        <InputField>
+          <Label>Event Date</Label>
+          <Input
+            type="date"
+            value={eventDate}
+            onChange={(e) => setEventDate(e.target.value)}
+            required
+          />
+        </InputField>
+        <InputField>
+          <Label>Upload Event Image (Optional)</Label>
+          <Input
+            type="file"
+            onChange={(e) => setImage(e.target.files[0])}
+          />
+        </InputField>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Submitting...' : 'Create Event'}
         </Button>
-      </form>
+      </FormWrapper>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Title</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Start Date</TableCell>
-              <TableCell>End Date</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {events.map((event) => (
-              <TableRow key={event.id}>
-                <TableCell>{event.title}</TableCell>
-                <TableCell>{event.description}</TableCell>
-                <TableCell>{formatDate(event.startDate)}</TableCell>
-                <TableCell>{formatDate(event.endDate)}</TableCell>
-                <TableCell>
-                  <IconButton onClick={() => handleEdit(event)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    onClick={async () => {
-                      try {
-                        await deleteDoc(doc(db, "events", event.id));
-                        fetchEvents();
-                      } catch (error) {
-                        console.error("Error deleting event:", error);
-                      }
-                    }}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {error && <Error>{error}</Error>}
+      {success && <Success>{success}</Success>}
 
-      <Dialog open={isEditDialogOpen} onClose={() => setIsEditDialogOpen(false)}>
-        <DialogTitle>Edit Event</DialogTitle>
-        <DialogContent>
-          {editingEvent && (
-            <>
-              <TextField
-                label="Title"
-                name="title"
-                value={editingEvent.title}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Description"
-                name="description"
-                value={editingEvent.description}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Fee"
-                name="fee"
-                value={editingEvent.fee}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Start Date"
-                name="startDate"
-                type="datetime-local"
-                value={editingEvent.startDate}
-                onChange={handleEditChange}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="End Date"
-                name="endDate"
-                type="datetime-local"
-                value={editingEvent.endDate}
-                onChange={handleEditChange}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="Max Participants"
-                name="maxParticipants"
-                value={editingEvent.maxParticipants}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Registration Deadline"
-                name="registrationDeadline"
-                type="datetime-local"
-                value={editingEvent.registrationDeadline}
-                onChange={handleEditChange}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    name="registrationRequired"
-                    checked={editingEvent.registrationRequired}
-                    onChange={handleEditChange}
-                  />
-                }
-                label="Registration Required"
-              />
-              <TextField
-                label="Sheet URL"
-                name="sheet"
-                value={editingEvent.sheet}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Slug"
-                name="slug"
-                value={editingEvent.slug}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Status"
-                name="status"
-                value={editingEvent.status}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="Venue"
-                name="venue"
-                value={editingEvent.venue}
-                onChange={handleEditChange}
-                fullWidth
-              />
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsEditDialogOpen(false)} color="primary">
-            Cancel
-          </Button>
-          <Button onClick={handleEditSave} color="primary">
-            Save Changes
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </div>
+      <EventsSection>
+        <Title>All Events</Title>
+        {events.length === 0 ? (
+          <p>No events found.</p>
+        ) : (
+          <EventsTable>
+            <thead>
+              <tr>
+                <TableHead>Event Name</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Fee</TableHead>
+                <TableHead>Action</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((event) => (
+                <TableRow key={event._id}>
+                  <TableCell>{event.title}</TableCell>
+                  <TableCell>{new Date(event.eventDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{event.fee}</TableCell>
+                  <TableCell>
+                    <DeleteButton onClick={() => handleDelete(event._id)}>
+                      Delete
+                    </DeleteButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </tbody>
+          </EventsTable>
+        )}
+      </EventsSection>
+    </Container>
   );
 };
 
