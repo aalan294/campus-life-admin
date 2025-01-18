@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { AppBar, Tabs, Tab, Box } from "@mui/material";
 import EventManager from "./EventManager";
 import SlideManager from "./SlideManager";
+import PosterStorage from "./PosterStorage"
 
 const DashboardLayout = () => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -14,13 +15,26 @@ const DashboardLayout = () => {
     <div>
       <AppBar position="static">
         <Tabs value={tabIndex} onChange={handleTabChange}>
-          <Tab label="Manage Events" />
-          <Tab label="Manage Slides" />
+          <Tab label="Manage Events" sx={{
+            color: "white", // Default color
+            "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
+          }} />
+          <Tab label="Manage Slides" sx={{
+            color: "white", // Default color
+            "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
+          }} />
+          <Tab label="Poster Popup"sx={{
+            color: "white", // Default color
+            "&.Mui-selected": { color: "black", backgroundColor: 'white' }, // Selected color
+          }} />
+
         </Tabs>
       </AppBar>
       <Box p={3}>
         {tabIndex === 0 && <EventManager />}
         {tabIndex === 1 && <SlideManager />}
+        {tabIndex === 2 && <PosterStorage />}
+
       </Box>
     </div>
   );
